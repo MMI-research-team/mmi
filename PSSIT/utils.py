@@ -1,7 +1,9 @@
 import sys
 import os
 import datetime as date
+from argparse import ArgumentParser, ArgumentTypeError
 from hashlib import sha3_224
+import numpy as np
 
 """ Check imports """
 
@@ -89,189 +91,76 @@ def saveLogsToFile(logs):
     if (os.path.isdir("logs") is False):
         os.mkdir("logs")
     actual_date = date.datetime.now()
-    f = open("logs/{}.txt".format(actual_date.strftime("%Y-%m-%d-%H-%M-%S")), "w")
+    f = open("logs/{}.txt".format(actual_date.strftime("%Y-%m-%d-%H-%M-%S")),
+             "w")
     for log in logs:
         f.write(log)
         f.write("\n")
     f.close()
 
 
-""" Check encoding from given value and return its value or default value
-Values : utf8,ascii
-Default value : utf8
- """
-
-
-def checkEnconding(params, encoding):
-    tempValue = ""
-    if ("-encoding" in params.keys()):
-        tempValue = params["-encoding"]
-
-    if ("-e" in params.keys()):
-        tempValue = params["-e"]
-    if (tempValue in ['utf8', 'ascii']):
-        return tempValue
+def check_paramater_a_if_relative_first(a: int) -> int:
+    temp_a = int(a)
+    if np.gcd(temp_a, 256) == 1:
+        return temp_a
     else:
-        return encoding
+        raise ArgumentTypeError(
+            "Value of paramater a must be relative prime with 256")
 
 
-""" Check input path from given value and return its value or default value of path """
+def setup_cli():
+    args_parser = ArgumentParser()
+    args_parser.add_argument("--action", type=str, action="store",
+                             help="Name for action", required=True,
+                             choices=["encode", "decode"])
+    args_parser.add_argument("-o", "--output", type=str,
+                             action="store",
+                             help="Path for output directory",
+                             dest="outputPath",
+                             required=True)
+    args_parser.add_argument("-i", "--input", type=str, action="store",
+                             dest="inputPath",
+                             help="Path for input directory", required=True)
+    args_parser.add_argument("-f", "--format", type=str, default="",
+                             action="store",
+                             choices=["png", "bmp", "sgi", "ppm", "tga", "ogg",
+                                      "flac", "wma", "m4a", "wav"],
+                             help="Extension for output file")
+    args_parser.add_argument("-fT", "--fileType", type=str,
+                             action="store", required=True,
+                             help="File type of output file",
+                             choices=["image", "sound"], dest="fileType")
+    args_parser.add_argument("-e", "--encoding", type=str,
+                             action="store", required=True,
+                             help="Encoding of characters in input files",
+                             choices=["utf8", "ascii"])
+    args_parser.add_argument("--hash", action="store_true",
+                             dest="isHash",
+                             help="Information for script to use one-way hash "
+                                  "function to convert output file name")
+    args_parser.add_argument("-a", type=check_paramater_a_if_relative_first,
+                             action="store",
+                             help="Value of argument a", required=True)
+    args_parser.add_argument("-b", type=int, action="store",
+                             help="Value of argument b", required=True)
+    return args_parser
 
 
-def checkInputPath(params, inputPath):
-    if ("-input" in params.keys()):
-        inputPath = params["-input"]
-
-    if ("-i" in params.keys()):
-        inputPath = params["-i"]
-
-    return os.path.abspath(inputPath)
-
-
-""" Check output path from given value and return its value or default value of path """
-
-
-def checkOutputPath(params, outputPath):
-    if ("-output" in params.keys()):
-        outputPath = params["-output"]
-
-    if ("-o" in params.keys()):
-        outputPath = params["-o"]
-
-    return os.path.abspath(outputPath)
-
-
-""" Check hash value from given value and return its value or default value of path
- Values : False,True
- Default Value : False
-"""
-
-
-def checkIsHash(params, isHash):
-    tempValue = False
-    if ("-hash" in params.keys()):
-        tempValue = params["-hash"]
-
-    if ("-h" in params.keys()):
-        tempValue = params["-h"]
-    if (tempValue in ["True", "False"]):
-        return bool(tempValue)
+def define_default_format_by_file_type(file_type: str) -> str:
+    if file_type == "image":
+        return "png"
     else:
-        return isHash
+        return "wav"
 
 
-""" Check action from given value and return that value or default value
-Values : encode,decode
-Default Value : encode """
+def get_arguments(args_parser):
+    args = vars(args_parser.parse_args())
+    args["inputPath"] = os.path.abspath(args["inputPath"])
+    args["outputPath"] = os.path.abspath(args["outputPath"])
 
-
-def checkAction(params, action):
-    tempAction = ""
-    if ("-action" in params.keys()):
-        tempAction = params["-action"]
-
-    if ("-a" in params.keys()):
-        tempAction = params["-a"]
-    if (tempAction in ['encode', 'decode']):
-        return tempAction
-    else:
-        return action
-
-
-""" Get params dictionary  """
-
-
-def getParams():
-    tempParamsDict = {}
-    params = sys.argv[1:]
-    for i in params:
-        param = i.split("=")
-        tempParamsDict[param[0]] = param[1]
-    return tempParamsDict
-
-
-""" Init config with default values"""
-
-
-def initConfig():
-    config = {
-        "encoding": "utf8",
-        "inputPath": "DataInput",
-        "outputPath": "DataOutput",
-        "action": "encode",
-        "isHash": False
-    }
-    return config
-
-
-"""Create config with values from parameters """
-
-
-def setup(params, config):
-    config['inputPath'] = checkInputPath(params, config['inputPath'])
-    config['outputPath'] = checkOutputPath(params, config['outputPath'])
-    config['isHash'] = checkIsHash(params, config['isHash'])
-    config['action'] = checkAction(params, config['action'])
-    config['fileType'] = checkFileType(params)
-    if (config['fileType'] == None):
-        raise Exception("Unknown fileType",
-                        "given fileType is different from permitted values")
-    else:
-        if (config['fileType'] == "sound"):
-            config['format'] = "wav"
-        else:
-            config['format'] = "png"
-            config['encoding'] = checkEnconding(params, config['encoding'])
-
-    config['format'] = checkFormat(params, config['format'])
-    return config
-
-
-""" Check format from given value and return that value or default value from  """
-
-
-def checkFormat(params, fileFormat):
-    tempValue = fileFormat
-
-    if ("-format" in params.keys()):
-        tempValue = params["-format"]
-
-    if ("-f" in params.keys()):
-        tempValue = params["-f"]
-    if (tempValue in ['ogg', 'wav', "flac", "wma", "m4a", "png", "bmp", 'sgi', 'ppm', 'tga']):
-        return tempValue
-    else:
-        print("unknown format. Set default value")
-        return fileFormat
-
-
-""" Check outputType value and return value  """
-
-
-def checkFileType(params):
-    tempFileType = None
-
-    if ("-fileType" in params.keys()):
-        tempFileType = params['-fileType']
-    if ("-fT" in params.keys()):
-        tempFileType = params['-fT']
-    if (tempFileType in ["sound", "image"]):
-        return tempFileType
-    else:
-        return None
-
-
-""" Recognise inputFormat by extension of file for decode"""
-
-
-def recogniseFileType(file):
-    extension = file.split(".")[1]
-    if (extension in ['wav', 'ogg', 'm4a', 'wma']):
-        return "sound"
-    elif (extension in ['png', 'bmp', 'sgi', 'ppm', 'tga']):
-        return "image"
-    else:
-        return None
+    if args["format"] == "":
+        args["format"] = define_default_format_by_file_type(args["fileType"])
+    return args
 
 
 """ Read content from txt file"""
@@ -294,12 +183,12 @@ def readFileContent(inputPath, inputFile):
 
 
 def clearDirectory(outputPath):
-    if (isOutputPathExists(outputPath) == True):
+    if isOutputPathExists(outputPath) == True:
         filesAmount = checkContentOfOutputPath(outputPath)
-        if (filesAmount > 0):
+        if filesAmount > 0:
             print("Directory has files. Remove all files?[Y/N]")
             option = input()
-            if (option in ['Y', 'y']):
+            if option in ['Y', 'y']:
                 removeItemsFromDirectory(outputPath)
                 print("All files was removed")
 
@@ -313,3 +202,15 @@ def clearDirectory(outputPath):
 
 def hashFilename(filename):
     return str(sha3_224(filename.encode()).hexdigest())
+
+
+def get_inverse_a(a):
+    for i in range(256):
+        if (a * i) % 256 == 1:
+            return i
+
+
+def get_inverse_a_sound(a):
+    for i in range(256 ** 2):
+        if (a * i) % (256 ** 2) == 1:
+            return i

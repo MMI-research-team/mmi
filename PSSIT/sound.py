@@ -2,6 +2,7 @@ import os
 from pydub import AudioSegment
 import struct
 import numpy as np
+import utils
 
 """Fill content from text file with 'a' letter to required size"""
 
@@ -9,9 +10,9 @@ import numpy as np
 def fillFileContent(fileContent):
     textLength = len(fileContent)
     rest = textLength % 4
-    if(rest != 0):
+    if (rest != 0):
         fileContent += chr(3)
-        for i in range(rest-1):
+        for i in range(rest - 1):
             fileContent += chr(97)
     return fileContent
 
@@ -20,7 +21,6 @@ def fillFileContent(fileContent):
 
 
 def readBytesFromSoundFile(filename, inputPath):
-   
     soundFile = AudioSegment.from_file(os.path.join(
         inputPath, filename))
     fileContent = soundFile.raw_data
@@ -30,24 +30,30 @@ def readBytesFromSoundFile(filename, inputPath):
 """ Transform sign to number representation """
 
 
-def transformSignToNumber(letter):
-    return ord(letter)
+def transformSignToNumber(letter, a, b):
+    num_letter = ord(letter)
+
+    new_number = ((a * num_letter) + b) % 256 ** 2
+    return new_number
 
 
 """ Transform number representation to sign"""
 
 
-def transformNumberToSign(number):
-    return chr(number)
+def transformNumberToSign(number, inverse_a, b):
+    new_number = ((number - b) * inverse_a) % 256 ** 2
+
+    return chr(new_number)
 
 
 """ Transform file content to bytes arr"""
 
 
-def transformFileContentToBytes(fileContent):
+def transformFileContentToBytes(fileContent, a, b):
     tempArr = []
     for i in range(len(fileContent)):
-        packedValue = struct.pack('h', transformSignToNumber(fileContent[i]))
+        packedValue = struct.pack('H',
+                                  transformSignToNumber(fileContent[i], a, b))
         tempArr.append(packedValue)
     return np.array(tempArr).tobytes()
 
@@ -55,13 +61,13 @@ def transformFileContentToBytes(fileContent):
 """ Transform bytes arr to text"""
 
 
-def transformBytesToText(bytes_arr):
+def transformBytesToText(bytes_arr, inverse_a, b):
     content = ""
-    dane_i = [int.from_bytes(bytes_arr[2*i:2*i+2], "little")
-              for i in range(int(len(bytes_arr)/2))]
+    dane_i = [int.from_bytes(bytes_arr[2 * i:2 * i + 2], "little")
+              for i in range(int(len(bytes_arr) / 2))]
 
     for i in dane_i:
-        content += transformNumberToSign(i)
+        content += transformNumberToSign(i, inverse_a, b)
     return content
 
 
